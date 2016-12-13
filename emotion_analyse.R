@@ -5,7 +5,7 @@ require(parallel, quietly = TRUE)
 require(openxlsx, quietly = TRUE)
 require(dplyr, quietly = TRUE)
 require(ggplot2, quietly = TRUE)
-require(plotly, quietly = TRUE)
+# require(plotly, quietly = TRUE)
 
 # 用于批量保存excel, list -> excel----------------------------
 
@@ -209,6 +209,41 @@ emotion_analysed_sign <- function(data_analysed){
   return(data_analysed)
 }
 
+# 对词语进行极性标注----------------------------
+
+word_polar_classify <- function(keyword, emotion_dict){
+  sub_dict <- emotion_dict %>% filter(word==keyword)
+  if(nrow(sub_dict)>0){
+    return(sub_dict$polar_1[1])
+  }else{
+    return(0)
+  }
+}
+
+# 对句子进行极性标注----------------------------
+
+emotion_polar_classify <- function(seg_list, emotion_dict){
+  require(dplyr, quietly = TRUE)
+  sub_dict <- emotion_dict %>% filter(word %in% seg_list) %>% select(word, polar_1)
+  if(nrow(sub_dict)==0){
+    return("None")
+  }else{
+    key_word <- seg_list[seg_list %in% sub_dict$word]
+    seg_list <- seg_list[seg_list %in% c("不", "不是", "没有", key_word)]
+    names(seg_list) <- 1:length(seg_list)
+    index <- as.numeric(names(seg_list)[seg_list %in% key_word])
+    if(length(index)==1){
+      return(word_polar_classify(key_word, sub_dict)*(-1)^(index+1))
+    }else{
+      reverse <- (-1)^(index - c(0, index[1:(length(index)-1)]) + 1)
+      emotion_vec <- sapply(1:length(key_word), function(i){
+        word_polar_classify(key_word[i],emotion_dict = sub_dict)
+      })
+      return(sum(reverse * emotion_vec))
+    }
+  }
+}
+
 # 输入数据框处理函数----------------------------
 
 emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_progress = TRUE){
@@ -221,6 +256,17 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
   segment_list <- emotion_text_segmenter(data_emotion, column_to_deal)
   if(show_progress){
     cat("分词完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始极性标注：\n")
+  }
+  emotion <- mclapply(segment_list, function(seg){
+    emotion_polar_classify(seg, emotion_dict)
+  }, mc.cores = 16)
+  emotion <- unlist(emotion)
+  data_emotion$sentiment <- emotion
+  if(show_progress){
+    cat("极性标注完成，用时：", Sys.time()-time_temp, "\n", sep = "")
     cat("------------------------------------------\n")
     time_temp <- Sys.time()
     cat("开始情感分析：\n")
@@ -265,9 +311,10 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
     time_temp <- Sys.time()
     cat("开始生成结果：\n")
   }
+  stat_list <- stat_list[,colnames(stat_list)!="语义"]
   result = list()
   result[["raw_data"]] <- cbind(data_emotion, stat_list)
-  stat_sum <- apply(stat_list[,1:29], 2, sum)
+  stat_sum <- apply(stat_list[,1:28], 2, sum)
   stat_names <- names(stat_sum)
   stat_result <- as.data.frame(stat_sum)
   rownames(stat_result) <- 1:nrow(stat_result)
@@ -298,7 +345,7 @@ emotion_plot_detail <- function(result_list, plot_title = "情感详细统计"){
 }
 
 emotion_plot_class <- function(result_list, plot_title = "情感大类统计"){
-  q = ggplot(result_list$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
+  q = ggplot(result_list$stat_result[22:28,], aes(x = type,y = stat_sum, fill = type))
   q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle(plot_title)
   q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
                 plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
@@ -309,7 +356,7 @@ emotion_plot_class <- function(result_list, plot_title = "情感大类统计"){
 
 # 分析过程------------------------------------------
 
-load("~/r projects/emotion_script/emotion_dict.RData")
+load("emotion_dict.RData")
 file_list <- list.files("input", pattern = "\\.xlsx")
 target_file <- Args[6]
 file_name <- gsub("\\.xlsx", "", target_file)
