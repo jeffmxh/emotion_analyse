@@ -1,11 +1,20 @@
-Args <- commandArgs()
-
+require(optparse, quietly = TRUE)
 require(jiebaR, quietly = TRUE)
 require(parallel, quietly = TRUE)
 require(openxlsx, quietly = TRUE)
 require(dplyr, quietly = TRUE)
 require(ggplot2, quietly = TRUE)
-# require(plotly, quietly = TRUE)
+
+options_list <- list(
+  make_option(c("-i", "--infile"), type = "character", default = NULL,
+              help = "待处理文件名", metavar = "character"),
+  make_option(c("-c", "--column"), type = "character", default = NULL,
+              help = "待处理列名", metavar = "character")
+)
+
+opt_parser <- OptionParser(option_list = options_list)
+opt <- parse_args(opt_parser)
+
 
 # 用于批量保存excel, list -> excel----------------------------
 
@@ -358,10 +367,10 @@ emotion_plot_class <- function(result_list, plot_title = "情感大类统计"){
 
 load("emotion_dict.RData")
 file_list <- list.files("input", pattern = "\\.xlsx")
-target_file <- Args[6]
+target_file <- opt$infile
 file_name <- gsub("\\.xlsx", "", target_file)
 result_name <- paste0(file_name, "_emotion_result.xlsx")
-target_column <- Args[7]
+target_column <- opt$column
 if(target_file %in% file_list){
   target_data <- read.xlsx(paste0("input/", target_file))
   if(target_column %in% colnames(target_data)){
