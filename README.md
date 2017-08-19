@@ -21,3 +21,7 @@ Rscript emotion_analyse.R -i "17_6.xlsx" -c "content"
 ### 注：
 
 目前对并行的设定为在**windows**下不进行并行，在**linux**环境下使用16个线程，此处没有考虑**MacOX**的情况，如使用时出现问题请直接修改43行``get_cores()``函数强制返回所需要的线程数即可。
+
+***
+
+**致谢**：特别感谢[ALEX](https://github.com/alexwwang)以及南京巴兰塔信息科技有限公司在我完成此项目过程中对我的帮助以及技术支持！
